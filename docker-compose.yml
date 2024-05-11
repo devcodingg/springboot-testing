@@ -1,0 +1,36 @@
+services:
+  postgresql:
+    container_name: postgresql
+    image: postgres:16.2
+    environment:
+      POSTGRES_USER: ntloc
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgresql:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - postgresql
+    restart: always
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:8.4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pgadmin4@pgadmin.org
+      PGADMIN_DEFAULT_PASSWORD: password
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    networks:
+      - postgresql
+    restart: always
+
+networks:
+  postgresql:
+    driver: bridge
+
+volumes:
+  postgresql:
+  pgadmin:
