@@ -3,8 +3,8 @@ services:
     container_name: postgresql
     image: postgres:16.2
     environment:
-      POSTGRES_USER: ntloc
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
       - postgresql:/var/lib/postgresql/data
     ports:

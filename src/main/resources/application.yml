@@ -5,8 +5,8 @@ spring:
     name: customer
   datasource:
     url: jdbc:postgresql://localhost:5432/customer
-    username: ntloc
-    password: password
+    username: postgres
+    password: postgres
   jpa:
     hibernate:
       ddl-auto: create-drop

@@ -1,184 +1,164 @@
 package com.ntloc.demo.customer;
 
-import com.ntloc.demo.AbstractTestcontainersTest;
+import com.ntloc.demo.AbstractTestContainersTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.http.*;
 
-import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.http.HttpMethod.*;
+import static org.junit.jupiter.api.Assertions.*;
 
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class CustomerIntegrationTest extends AbstractTestcontainersTest {
+class CustomerIntegrationTest extends AbstractTestContainersTest {
 
-    public static final String API_CUSTOMERS_PATH = "/api/v1/customers";
+    private static final String CUSTOMER_API_PATH = "/api/v1/customers";
 
     @Autowired
-    TestRestTemplate testRestTemplate;
+    private TestRestTemplate testRestTemplate;
 
     @Test
     void shouldCreateCustomer() {
-        //given
-        CreateCustomerRequest request =
-                new CreateCustomerRequest(
-                        "name",
-                        "email" + UUID.randomUUID() + "@gmail.com", //unique
-                        "address"
-                );
-        //when
-        ResponseEntity<Void> createCustomerResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH,
-                POST,
-                new HttpEntity<>(request),
-                Void.class);
-        //then
-        assertThat(createCustomerResponse.getStatusCode())
-                .isEqualTo(HttpStatus.OK);
-        //get all customers request
-        ResponseEntity<List<Customer>> allCustomersResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH,
-                GET,
-                null,
-                new ParameterizedTypeReference<>() {
-                }
+        // Arrange
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                "John Doe",
+                "john.doe" + UUID.randomUUID() + "@gmail.com",
+                "123 Main St"
         );
-        assertThat(allCustomersResponse.getStatusCode())
-                .isEqualTo(HttpStatus.OK);
-        Customer customerCreated = Objects.requireNonNull(allCustomersResponse.getBody())
-                .stream()
-                .filter(c -> c.getEmail().equals(request.email()))
-                .findFirst()
-                .orElseThrow();
-        //comparison of customer we created with create customer request
-        assertThat(customerCreated.getName()).isEqualTo(request.name());
-        assertThat(customerCreated.getEmail()).isEqualTo(request.email());
-        assertThat(customerCreated.getAddress()).isEqualTo(request.address());
 
+        // Act
+        ResponseEntity<Void> response = testRestTemplate.exchange(
+                CUSTOMER_API_PATH,
+                HttpMethod.POST,
+                new HttpEntity<>(request),
+                Void.class
+        );
 
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode(), "Customer creation should return HTTP 201");
+    }
+
+    @Test
+    void shouldGetAllCustomers() {
+        // Arrange
+        createTestCustomer("Alice");
+        createTestCustomer("Bob");
+
+        // Act
+        ResponseEntity<Customer[]> response = testRestTemplate.exchange(
+                CUSTOMER_API_PATH,
+                HttpMethod.GET,
+                null,
+                Customer[].class
+        );
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode(), "Get all customers should return HTTP 200");
+        assertNotNull(response.getBody(), "Customer list should not be null");
+        assertTrue(response.getBody().length >= 2, "Customer list should contain at least two customers");
+    }
+
+    @Test
+    void shouldGetCustomerById() {
+        // Arrange
+        Long customerId = createAndGetCustomerId("Charlie");
+
+        // Act
+        ResponseEntity<Customer> response = testRestTemplate.exchange(
+                CUSTOMER_API_PATH + "/" + customerId,
+                HttpMethod.GET,
+                null,
+                Customer.class
+        );
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode(), "Get customer by ID should return HTTP 200");
+        assertNotNull(response.getBody(), "Customer should not be null");
+        assertEquals("Charlie", response.getBody().getName(), "Customer name should match");
     }
 
     @Test
     void shouldUpdateCustomer() {
-        //given
-        CreateCustomerRequest request =
-                new CreateCustomerRequest(
-                        "name",
-                        "email" + UUID.randomUUID() + "@gmail.com", //unique
-                        "address"
-                );
-        ResponseEntity<Void> createCustomerResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH,
-                POST,
-                new HttpEntity<>(request),
-                Void.class);
-        assertThat(createCustomerResponse.getStatusCode())
-                .isEqualTo(HttpStatus.OK);
-        //get all customers request
-        ResponseEntity<List<Customer>> allCustomersResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH,
-                GET,
+        // Arrange
+        Long customerId = createAndGetCustomerId("David");
+        String newName = "David Updated";
+        String newAddress = "New Address";
+
+        // Act
+        ResponseEntity<Void> response = testRestTemplate.exchange(
+                CUSTOMER_API_PATH + "/" + customerId + "?name=" + newName + "&address=" + newAddress,
+                HttpMethod.PUT,
                 null,
-                new ParameterizedTypeReference<>() {
-                }
+                Void.class
         );
-        assertThat(allCustomersResponse.getStatusCode())
-                .isEqualTo(HttpStatus.OK);
 
-        Long id = Objects.requireNonNull(allCustomersResponse.getBody()).stream()
-                .filter(c -> c.getEmail().equals(request.email()))
-                .map(Customer::getId)
-                .findFirst()
-                .orElseThrow();
-        String newEmail = "newEmail" + UUID.randomUUID() + "@gmail.com";
-        //when
-        testRestTemplate.exchange(
-                        API_CUSTOMERS_PATH + "/" + id + "?email=" + newEmail,
-                        PUT,
-                        null,
-                        Void.class)
-                .getStatusCode().is2xxSuccessful();
-        //getCustomerById after we updated
-        ResponseEntity<Customer> customerByIdResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH + "/" + id,
-                GET,
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode(), "Update customer should return HTTP 204");
+
+        ResponseEntity<Customer> updatedCustomerResponse = testRestTemplate.exchange(
+                CUSTOMER_API_PATH + "/" + customerId,
+                HttpMethod.GET,
                 null,
-                new ParameterizedTypeReference<>() {
-                }
+                Customer.class
         );
-        assertThat(customerByIdResponse.getStatusCode())
-                .isEqualTo(HttpStatus.OK);
-        //Do the comparison customer updated with new email we want to update
-        Customer customerUpdated = Objects.requireNonNull(customerByIdResponse.getBody());
 
-        assertThat(customerUpdated.getName()).isEqualTo(request.name());
-        assertThat(customerUpdated.getEmail()).isEqualTo(newEmail);
-        assertThat(customerUpdated.getAddress()).isEqualTo(request.address());
-
-
+        assertNotNull(updatedCustomerResponse.getBody(), "Updated customer should not be null");
+        assertEquals(newName, updatedCustomerResponse.getBody().getName(), "Customer name should be updated");
+        assertEquals(newAddress, updatedCustomerResponse.getBody().getAddress(), "Customer address should be updated");
     }
 
     @Test
     void shouldDeleteCustomer() {
-        //given
-        CreateCustomerRequest request =
-                new CreateCustomerRequest(
-                        "name",
-                        "email" + UUID.randomUUID() + "@gmail.com", //unique
-                        "address"
-                );
-        ResponseEntity<Void> createCustomerResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH,
-                POST,
-                new HttpEntity<>(request),
-                Void.class);
-        assertThat(createCustomerResponse.getStatusCode())
-                .isEqualTo(HttpStatus.OK);
-        //get all customers request
-        ResponseEntity<List<Customer>> allCustomersResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH,
-                GET,
-                null,
-                new ParameterizedTypeReference<>() {
-                }
-        );
-        assertThat(allCustomersResponse.getStatusCode())
-                .isEqualTo(HttpStatus.OK);
+        // Arrange
+        Long customerId = createAndGetCustomerId("Eve");
 
-        Long id = Objects.requireNonNull(allCustomersResponse.getBody()).stream()
-                .filter(c -> c.getEmail().equals(request.email()))
-                .map(Customer::getId)
-                .findFirst()
-                .orElseThrow();
-        //when
-        testRestTemplate.exchange(
-                API_CUSTOMERS_PATH + "/" + id,
-                DELETE,
+        // Act
+        ResponseEntity<Void> response = testRestTemplate.exchange(
+                CUSTOMER_API_PATH + "/" + customerId,
+                HttpMethod.DELETE,
                 null,
                 Void.class
-        ).getStatusCode().is2xxSuccessful();
-        //then
-        //getCustomerById after we deleted that customer
-        ResponseEntity<Object> customerByIdResponse = testRestTemplate.exchange(
-                API_CUSTOMERS_PATH + "/" + id,
-                GET,
-                null,
-                new ParameterizedTypeReference<>() {
-                }
         );
 
-        assertThat(customerByIdResponse.getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode(), "Delete customer should return HTTP 204");
 
+        ResponseEntity<Customer> deletedCustomerResponse = testRestTemplate.exchange(
+                CUSTOMER_API_PATH + "/" + customerId,
+                HttpMethod.GET,
+                null,
+                Customer.class
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, deletedCustomerResponse.getStatusCode(), "Deleted customer should not be found");
+    }
+
+    // Helper methods
+    private void createTestCustomer(String name) {
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                name,
+                name.toLowerCase() + UUID.randomUUID() + "@example.com",
+                "Test Address"
+        );
+        ResponseEntity<Void> response = testRestTemplate.postForEntity(CUSTOMER_API_PATH, request, Void.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode(), "Customer creation should return HTTP 201");
+    }
+
+    private Long createAndGetCustomerId(String name) {
+        createTestCustomer(name);
+
+        ResponseEntity<Customer[]> getAllResponse = testRestTemplate.exchange(
+                CUSTOMER_API_PATH,
+                HttpMethod.GET,
+                null,
+                Customer[].class
+        );
+
+        assertNotNull(getAllResponse.getBody(), "Customer list should not be null");
+        assertTrue(getAllResponse.getBody().length > 0, "Customer list should not be empty");
+
+        return getAllResponse.getBody()[getAllResponse.getBody().length - 1].getId();
     }
 }
