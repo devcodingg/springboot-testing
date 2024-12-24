@@ -1,5 +1,7 @@
 package com.ntloc.demo.customer;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -25,30 +27,47 @@ class CustomerRepositoryTest {
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:16.2"));
 
     @Autowired
-    CustomerRepository customerRepository;
+    private CustomerRepository customerRepository;
 
-    @Test
-    void canEstablishDatabaseContainerConnection() {
-        assertTrue(postgreSQLContainer.isCreated());
-        assertTrue(postgreSQLContainer.isRunning());
-    }
+    private Customer testCustomer;
 
-    @Test
-    void shouldReturnCustomerWhenFindByEmail() {
-        Customer customer = Customer.create(
+    @BeforeEach
+    void setUp() {
+        testCustomer = Customer.create(
                 "Ahmet",
                 "ahmtatar@gmail.com",
                 "Groove St."
         );
-        customerRepository.save(customer);
+        customerRepository.save(testCustomer);
+    }
 
+    @AfterEach
+    void tearDown() {
+        customerRepository.deleteAll();
+    }
+
+    @Test
+    void canEstablishDatabaseContainerConnection() {
+        assertTrue(postgreSQLContainer.isCreated(), "Database container should be created");
+        assertTrue(postgreSQLContainer.isRunning(), "Database container should be running");
+    }
+
+    @Test
+    void shouldReturnCustomerWhenFindByEmail() {
         Optional<Customer> retrievedCustomer = customerRepository.findByEmail("ahmtatar@gmail.com");
 
         assertTrue(retrievedCustomer.isPresent(), "Retrieved customer should be present");
         Customer actualCustomer = retrievedCustomer.get();
         assertNotNull(actualCustomer, "Retrieved customer should not be null");
-        assertEquals(customer.getEmail(), actualCustomer.getEmail(), "Emails should match");
-        assertEquals(customer.getName(), actualCustomer.getName(), "Names should match");
-        assertEquals(customer.getAddress(), actualCustomer.getAddress(), "Addresses should match");
+        assertEquals(testCustomer.getEmail(), actualCustomer.getEmail(), "Emails should match");
+        assertEquals(testCustomer.getName(), actualCustomer.getName(), "Names should match");
+        assertEquals(testCustomer.getAddress(), actualCustomer.getAddress(), "Addresses should match");
+    }
+
+    @Test
+    void shouldNotFindCustomerWhenEmailIsNotPresent() {
+        Optional<Customer> customerByEmail = customerRepository.findByEmail("somethingelse@gmail.com");
+
+        assertFalse(customerByEmail.isPresent(), "Customer with the given email should not be present");
     }
 }
